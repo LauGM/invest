@@ -1,85 +1,135 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
+import { ref, onMounted } from 'vue';
+import { useTheme } from 'vuetify';
+import { RouterView } from 'vue-router';
+
+const theme = useTheme();
+const drawer = ref(true);
+const rail = ref(false);
+const isDark = ref(false);
+
+// Load theme preference from localStorage
+onMounted(() => {
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme) {
+    isDark.value = savedTheme === 'dark';
+    theme.change(isDark.value ? 'dark' : 'light');
+  } else {
+    // Default to system preference if no saved preference
+    isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    theme.change(isDark.value ? 'dark' : 'light');
+  }
+});
+
+// Watch for system theme changes
+if (typeof window !== 'undefined') {
+  const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  darkModeMediaQuery.addEventListener('change', (e) => {
+    if (!localStorage.getItem('theme')) {
+      isDark.value = e.matches;
+      theme.global.name.value = isDark.value ? 'dark' : 'light';
+    }
+  });
+}
+
+// Toggle theme
+const toggleTheme = () => {
+  isDark.value = !isDark.value;
+  theme.change(isDark.value ? 'dark' : 'light');
+  localStorage.setItem('theme', isDark.value ? 'dark' : 'light');
+};
+
+const menuItems = [
+  { title: 'Dashboard', icon: 'mdi-view-dashboard', to: '/' },
+  { title: 'My Investments', icon: 'mdi-chart-line', to: '/investments' },
+  { title: 'Add Investment', icon: 'mdi-plus-circle', to: '/add-investment' },
+  { title: 'Analytics', icon: 'mdi-chart-areaspline', to: '/analytics' },
+  { title: 'Settings', icon: 'mdi-cog', to: '/settings' },
+];
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
+  <v-app :theme="isDark ? 'dark' : 'light'">
+    <v-navigation-drawer
+      v-model="drawer"
+      :rail="rail"
+      permanent
+      @click="rail = false"
+    >
+      <v-list-item
+        prepend-avatar="https://randomuser.me/api/portraits/men/85.jpg"
+        title="John Leider"
+        nav
+      >
+        <template v-slot:append>
+          <v-btn
+            variant="text"
+            :icon="rail ? 'mdi-chevron-right' : 'mdi-chevron-left'"
+            @click.stop="rail = !rail"
+          ></v-btn>
+        </template>
+      </v-list-item>
 
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
+      <v-divider></v-divider>
 
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
-      </nav>
-    </div>
-  </header>
+      <v-list density="compact" nav>
+        <v-list-item
+          v-for="(item, i) in menuItems"
+          :key="i"
+          :value="item"
+          :to="item.to"
+          :prepend-icon="item.icon"
+          :title="item.title"
+        ></v-list-item>
+      </v-list>
+    </v-navigation-drawer>
 
-  <RouterView />
+    <v-app-bar color="primary">
+      <v-app-bar-nav-icon @click.stop="drawer = !drawer"></v-app-bar-nav-icon>
+      <v-toolbar-title>Investments Tracker</v-toolbar-title>
+      <v-spacer></v-spacer>
+      <v-btn
+        icon
+        @click="toggleTheme"
+        :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+      >
+        <v-icon>{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+      </v-btn>
+      <v-btn icon>
+        <v-icon>mdi-magnify</v-icon>
+      </v-btn>
+
+      <v-btn icon>
+        <v-badge content="2" color="error">
+          <v-icon>mdi-bell</v-icon>
+        </v-badge>
+      </v-btn>
+    </v-app-bar>
+
+    <v-main>
+      <v-container fluid class="pa-6">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </v-container>
+    </v-main>
+  </v-app>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
-nav {
-  width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
-}
-
-nav a.router-link-exact-active {
-  color: var(--color-text);
-}
-
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
-}
-
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
-}
-
-nav a:first-of-type {
-  border: 0;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
-  }
+.v-navigation-drawer__content {
+  overflow-y: auto !important;
 }
 </style>
