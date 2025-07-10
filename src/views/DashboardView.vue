@@ -22,45 +22,20 @@
 
     <v-row>
       <v-col cols="12" lg="8">
-        <v-card class="mb-6">
-          <v-card-title class="d-flex justify-space-between align-center">
-            <span>Portfolio Performance</span>
-            <v-btn-toggle
-              v-model="timeRange"
-              mandatory
-              density="compact"
-              color="primary"
-              @update:modelValue="fetchPortfolioHistory"
-            >
-              <v-btn value="7d">7D</v-btn>
-              <v-btn value="1m">1M</v-btn>
-              <v-btn value="3m">3M</v-btn>
-              <v-btn value="1y">1Y</v-btn>
-            </v-btn-toggle>
+        <v-card>
+          <v-card-title class="d-flex align-center">
+            <v-icon class="me-2">mdi-history</v-icon>
+            Recent Transactions
+            <v-progress-circular
+              v-if="transactionsLoading"
+              indeterminate
+              size="24"
+              width="2"
+              class="ms-2"
+            ></v-progress-circular>
           </v-card-title>
           <v-card-text>
-            <div style="height: 300px; position: relative;">
-              <PortfolioChart
-                v-if="chartData"
-                :data="chartData"
-                height="100%"
-              />
-              <v-progress-circular
-                v-else
-                indeterminate
-                color="primary"
-                size="64"
-                class="ma-auto d-flex align-center justify-center"
-                style="width: 100%;"
-              ></v-progress-circular>
-            </div>
-          </v-card-text>
-        </v-card>
-
-        <v-card>
-          <v-card-title>Recent Transactions</v-card-title>
-          <v-card-text>
-            <v-table>
+            <v-table v-if="recentTransactions.length > 0">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -71,41 +46,95 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="i in 5" :key="i">
-                  <td>2023-06-{{ 10 + i }}</td>
-                  <td>Bitcoin</td>
-                  <td>Buy</td>
-                  <td>${{ (1000 * i).toLocaleString() }}</td>
+                <tr v-for="tx in recentTransactions" :key="tx.id">
+                  <td>{{ formatDate(tx.createdAt) }}</td>
+                  <td class="d-flex align-center">
+                    <v-img 
+                      :src="getCryptoIconUrl(tx.assetSymbol || tx.asset, 'small')" 
+                      :alt="tx.assetName || tx.asset"
+                      @error="handleImageError($event, tx.assetSymbol || tx.asset)"
+                      :lazy-src="getFallbackIcon(tx.assetSymbol || tx.asset)"
+                      :key="'tx-img-' + tx.id + '-' + Date.now()"
+                      width="24"
+                      height="24"
+                      class="me-2"
+                      contain
+                    >
+                      <template v-slot:placeholder>
+                        <v-icon size="16" color="primary">mdi-currency-usd</v-icon>
+                      </template>
+                      <template v-slot:error>
+                        <v-icon size="16" color="primary">mdi-currency-usd</v-icon>
+                      </template>
+                    </v-img>
+                    {{ tx.assetName || tx.asset }}
+                  </td>
+                  <td>{{ tx.type || 'Buy' }}</td>
+                  <td>{{ formatCurrency(tx.amount * (tx.price || 1)) }}</td>
                   <td>
-                    <v-chip size="small" color="success" variant="flat">Completed</v-chip>
+                    <v-chip 
+                      size="small" 
+                      :color="getStatusColor(tx.status)" 
+                      variant="flat"
+                      label
+                    >
+                      {{ tx.status || 'Completed' }}
+                    </v-chip>
                   </td>
                 </tr>
               </tbody>
             </v-table>
+            <v-alert
+              v-else
+              type="info"
+              variant="tonal"
+              class="mt-2"
+            >
+              No recent transactions found
+            </v-alert>
           </v-card-text>
         </v-card>
       </v-col>
 
       <v-col cols="12" lg="4">
-        <v-card class="mb-6">
-          <v-card-title>Asset Allocation</v-card-title>
-          <v-card-text>
-            <div style="height: 300px;" class="d-flex align-center justify-center">
-              <p class="text-grey">Pie chart will be displayed here</p>
-            </div>
-          </v-card-text>
-        </v-card>
-
         <v-card>
-          <v-card-title>Watchlist</v-card-title>
+          <v-card-title class="d-flex align-center">
+            <v-icon class="me-2">mdi-star</v-icon>
+            Watchlist
+            <v-progress-circular
+              v-if="watchlistLoading"
+              indeterminate
+              size="24"
+              width="2"
+              class="ms-2"
+            ></v-progress-circular>
+          </v-card-title>
           <v-card-text>
             <v-list>
-              <v-list-item v-for="(coin, i) in watchlist" :key="i" :title="coin.name" :subtitle="coin.symbol">
+              <v-list-item v-for="(coin, index) in watchlist" :key="index" class="px-0" :class="{'mb-2': index < watchlist.length - 1}">
                 <template v-slot:prepend>
-                  <v-avatar size="40" class="me-3">
-                    <v-img :src="coin.image" :alt="coin.name" />
+                  <v-avatar class="mr-2" size="24" style="min-width: 24px; width: 24px;">
+                    <v-img 
+                      :src="getCryptoIconUrl(coin.id, 'small')" 
+                      :alt="coin.name"
+                      @error="handleImageError($event, coin.id)"
+                      :lazy-src="getFallbackIcon(coin.id)"
+                      :key="'watchlist-' + coin.id + '-' + Date.now()"
+                      width="24"
+                      height="24"
+                      contain
+                    >
+                      <template v-slot:placeholder>
+                        <v-icon size="16" color="primary">mdi-currency-usd</v-icon>
+                      </template>
+                      <template v-slot:error>
+                        <v-icon size="16" color="primary">mdi-currency-usd</v-icon>
+                      </template>
+                    </v-img>
                   </v-avatar>
                 </template>
+                <v-list-item-title>{{ coin.name }}</v-list-item-title>
+                <v-list-item-subtitle>{{ coin.symbol }}</v-list-item-subtitle>
                 <template v-slot:append>
                   <div class="text-right">
                     <div class="font-weight-bold">${{ coin.price.toLocaleString() }}</div>
@@ -124,14 +153,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue';
 import { useInvestmentStore } from '@/stores/investmentStore';
-import PortfolioChart from '@/components/charts/PortfolioChart.vue';
+import { getMultipleCryptoPrices, getCryptoIconUrl } from '@/services/cryptoApi';
+import { format } from 'date-fns';
 
 const investmentStore = useInvestmentStore();
-const loading = ref(true);
-const timeRange = ref('1m');
-const chartData = ref(null);
 
 // Computed properties for dashboard stats
 const stats = computed(() => {
@@ -140,13 +167,8 @@ const stats = computed(() => {
   const profitLoss = portfolioValue - totalInvested;
   const profitLossPercentage = totalInvested > 0 ? (profitLoss / totalInvested) * 100 : 0;
   
-  // Get 24h change from portfolio history if available
-  let dailyChange = 0;
-  if (chartData.value?.values?.length > 1) {
-    const today = chartData.value.values[chartData.value.values.length - 1];
-    const yesterday = chartData.value.values[chartData.value.values.length - 2];
-    dailyChange = today - yesterday;
-  }
+  // Static daily change since we removed the portfolio history
+  const dailyChange = 0;
   
   return [
     {
@@ -182,43 +204,62 @@ const stats = computed(() => {
   ];
 });
 
-const watchlist = ref([
-  {
-    name: 'Bitcoin',
-    symbol: 'BTC',
-    price: 42563.42,
-    change: 2.5,
-    image: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png'
-  },
-  {
-    name: 'Ethereum',
-    symbol: 'ETH',
-    price: 2324.67,
-    change: -1.2,
-    image: 'https://cryptologos.cc/logos/ethereum-eth-logo.png'
-  },
-  {
-    name: 'Cardano',
-    symbol: 'ADA',
-    price: 0.45,
-    change: 0.8,
-    image: 'https://cryptologos.cc/logos/cardano-ada-logo.png'
-  },
-  {
-    name: 'Solana',
-    symbol: 'SOL',
-    price: 102.34,
-    change: 5.7,
-    image: 'https://cryptologos.cc/logos/solana-sol-logo.png'
-  },
-  {
-    name: 'Polkadot',
-    symbol: 'DOT',
-    price: 6.78,
-    change: -0.5,
-    image: 'https://cryptologos.cc/logos/polkadot-new-dot-logo.png'
+// Default watchlist with top 5 cryptocurrencies by market cap
+const defaultWatchlist = [
+  { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin' },
+  { id: 'ethereum', symbol: 'eth', name: 'Ethereum' },
+  { id: 'tether', symbol: 'usdt', name: 'Tether' },
+  { id: 'binancecoin', symbol: 'bnb', name: 'BNB' },
+  { id: 'solana', symbol: 'sol', name: 'Solana' }
+];
+
+const watchlist = ref([]);
+const watchlistLoading = ref(true);
+
+// Fetch watchlist data
+const fetchWatchlistData = async () => {
+  try {
+    watchlistLoading.value = true;
+    
+    // Get prices for all coins in the watchlist
+    const coinIds = defaultWatchlist.map(coin => coin.id);
+    const prices = await getMultipleCryptoPrices(coinIds);
+    
+    // Get 24h price change data
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinIds.join(',')}&price_change_percentage=24h`
+    );
+    const marketData = await response.json();
+    
+    // Map the data to our watchlist format
+    watchlist.value = defaultWatchlist.map(coin => {
+      const priceData = prices[coin.id] || { usd: 0 };
+      const marketInfo = marketData.find(m => m.id === coin.id) || { price_change_percentage_24h: 0 };
+      
+      return {
+        id: coin.id,
+        name: coin.name,
+        symbol: coin.symbol.toUpperCase(),
+        price: priceData.usd || 0,
+        change: marketInfo.price_change_percentage_24h ? 
+          parseFloat(marketInfo.price_change_percentage_24h.toFixed(2)) : 0,
+        image: getCryptoIconUrl(coin.id, 'small')
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching watchlist data:', error);
+    // Fallback to default values if API fails
+    watchlist.value = defaultWatchlist.map(coin => ({
+      name: coin.name,
+      symbol: coin.symbol.toUpperCase(),
+      price: 0,
+      change: 0,
+      image: getCryptoIconUrl(coin.id, 'medium')
+    }));
+  } finally {
+    watchlistLoading.value = false;
   }
-]);
+};
 
 // Format currency
 const formatCurrency = (value) => {
@@ -230,57 +271,125 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
-// Fetch portfolio history data
-const fetchPortfolioHistory = async () => {
+// Computed property to get recent transactions
+const recentTransactions = computed(() => {
+  // Get all investments, sorted by date (newest first)
+  return [...investmentStore.investments]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 5); // Limit to 5 most recent
+});
+
+const transactionsLoading = computed(() => investmentStore.isLoading);
+
+// Format date for display
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
   try {
-    loading.value = true;
-    // In a real app, this would fetch from your backend
-    const days = timeRange.value === '7d' ? 7 : 
-                 timeRange.value === '1m' ? 30 : 
-                 timeRange.value === '3m' ? 90 : 365;
-    
-    // Simulate API call with timeout
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Generate sample data for the chart
-    const now = new Date();
-    const values = [];
-    const dates = [];
-    const baseValue = investmentStore.totalPortfolioValue || 10000;
-    
-    for (let i = days; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-      dates.push(date.toISOString().split('T')[0]);
-      
-      // Simulate price movement with some randomness
-      const previousValue = values[i+1] || baseValue;
-      const change = (Math.random() - 0.5) * 0.02; // Random change between -1% and +1%
-      values.push(previousValue * (1 + change));
-    }
-    
-    // Format data for the chart
-    chartData.value = {
-      dates: dates,
-      values: values
-    };
-    
-  } catch (error) {
-    console.error('Error fetching portfolio history:', error);
-  } finally {
-    loading.value = false;
+    return format(new Date(dateString), 'MMM d, yyyy');
+  } catch (e) {
+    console.error('Error formatting date:', e);
+    return dateString;
   }
 };
 
-// Initialize component
-onMounted(() => {
-  fetchPortfolioHistory();
+// Get fallback icon URL
+const getFallbackIcon = (coinId) => {
+  // Try to get the icon URL using the same logic as getCryptoIconUrl
+  const url = getCryptoIconUrl(coinId, 'thumb');
+  
+  // If we got a URL, use it
+  if (url) {
+    return url;
+  }
+  
+  // Default fallback to Ethereum icon
+  return 'https://assets.coingecko.com/coins/images/279/thumb/ethereum.png';
+};
+
+// Get status color for chips
+const getStatusColor = (status) => {
+  const statusMap = {
+    'completed': 'success',
+    'pending': 'warning',
+    'failed': 'error',
+    'cancelled': 'error',
+    'processing': 'info'
+  };
+  return statusMap[status?.toLowerCase()] || 'default';
+};
+
+
+// Handle image loading errors
+const handleImageError = (event, coinId) => {
+  console.warn(`Failed to load image for ${coinId}`, event);
+  // Force update the image source to trigger a re-render
+  if (event.target) {
+    event.target.src = getFallbackIcon(coinId);
+  }
+};
+
+// Track if the component is still mounted
+let isMounted = true;
+
+// Initialize dashboard data
+const initializeDashboard = async () => {
+  try {
+    console.log('Initializing dashboard...');
+    console.log('Dashboard initialized');
+  } catch (error) {
+    console.error('Error initializing dashboard:', error);
+  }
+};
+
+// Set up auto-refresh every 5 minutes
+let refreshInterval;
+
+// Initialize on mount
+onMounted(async () => {
+  console.log('Dashboard mounted, initializing...');
+  
+  try {
+    // Update prices first
+    console.log('Updating investment prices...');
+    await investmentStore.updatePrices();
+    
+    // Then fetch all dashboard data in parallel
+    await Promise.all([
+      initializeDashboard(),
+      fetchWatchlistData()
+    ]);
+    
+    // Set up auto-refresh
+    refreshInterval = setInterval(() => {
+      fetchWatchlistData();
+    }, 5 * 60 * 1000);
+    
+    console.log('Dashboard initialization complete');
+  } catch (error) {
+    console.error('Error initializing dashboard:', error);
+  }
 });
 
-// Watch for time range changes
-watch(timeRange, () => {
-  fetchPortfolioHistory();
+// Re-initialize when the route changes to this component
+onActivated(initializeDashboard);
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (!isMounted) return;
+  
+  console.log('Dashboard unmounting, cleaning up...');
+  isMounted = false;
+  
+  // Clear any intervals
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+  }
+  
+  console.log('Dashboard cleanup complete');
 });
+
+
 </script>
 
 <style scoped>
@@ -303,21 +412,6 @@ watch(timeRange, () => {
 :deep(.v-card-title) {
   padding: 16px 20px;
   font-weight: 600;
-}
-
-:deep(.v-btn-toggle) {
-  background: transparent;
-  border: 1px solid rgba(var(--v-theme-primary), 0.3);
-  border-radius: 8px;
-  padding: 2px;
-}
-
-:deep(.v-btn-toggle .v-btn) {
-  min-width: 48px;
-  height: 28px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
 }
 
 .v-table {

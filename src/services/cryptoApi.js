@@ -10,42 +10,119 @@ const PUBLIC_API_URL = 'https://api.coingecko.com/api/v3';
 // Simple CORS proxy as fallback (not all endpoints support CORS)
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
+// Coin ID to image path mapping for popular coins
+const coinImageMap = {
+  // Mainnet coins
+  'bitcoin': '1/large/bitcoin.png',
+  'btc': '1/large/bitcoin.png',
+  'ethereum': '279/large/ethereum.png',
+  'eth': '279/large/ethereum.png',
+  'tether': '325/large/Tether.png',
+  'usdt': '325/large/Tether.png',
+  'binancecoin': '825/large/bnb-icon2_2x.png',
+  'bnb': '825/large/bnb-icon2_2x.png',
+  'solana': '4128/large/solana.png',
+  'sol': '4128/large/solana.png',
+  'cardano': '975/large/cardano.png',
+  'ada': '975/large/cardano.png',
+  'ripple': '44/svg/xrp-symbol-white-128.png',
+  'xrp': '44/svg/xrp-symbol-white-128.png',
+  'polkadot': '12171/large/polkadot.png',
+  'dot': '12171/large/polkadot.png',
+  'dogecoin': '5/large/dogecoin.png',
+  'doge': '5/large/dogecoin.png',
+  'shiba-inu': '11939/large/shiba.png',
+  'shib': '11939/large/shiba.png',
+  'avalanche-2': '12559/large/Avalanche_Circle_RedWhite_Trans.png',
+  'avax': '12559/large/Avalanche_Circle_RedWhite_Trans.png',
+  'chainlink': '877/large/chainlink-new-logo.png',
+  'link': '877/large/chainlink-new-logo.png',
+  'polygon-pos': '4713/large/matic-token-icon.png',
+  'matic': '4713/large/matic-token-icon.png',
+  'litecoin': '2/large/litecoin.png',
+  'ltc': '2/large/litecoin.png'
+};
+
 // Get cryptocurrency icon URL
 export function getCryptoIconUrl(coinId, size = 'small') {
-  if (!coinId) return '';
-  
-  const id = coinId.toLowerCase();
-  const sizes = {
-    small: '32',
-    medium: '64',
-    large: '128'
-  };
-  
-  const sizeParam = sizes[size] || sizes.small;
-  
-  // Get CoinGecko ID for more reliable icon fetching
-  const coinData = getCoinData(id);
-  const coinGeckoId = coinData?.id || id;
-  
-  // Try multiple icon sources in order of reliability
-  const sources = [
-    // CoinGecko (supports most coins)
-    `https://assets.coingecko.com/coins/images/1/large/bitcoin.png?1547033579`,
-    // Fallback to CoinMarketCap
-    `https://s2.coinmarketcap.com/static/img/coins/64x64/${getCoinMarketCapId(id)}.png`,
-    // Fallback to trusted CDN with CORS support
-    `https://cryptoicons.org/api/icon/${id.toLowerCase()}/200`,
-    // Fallback to our own assets if available
-    `/img/crypto/${id}.png`
-  ];
-  
-  // If we have a valid CoinGecko ID, use their CDN
-  if (coinGeckoId) {
-    sources.unshift(`https://assets.coingecko.com/coins/images/1/large/bitcoin.png?1547033579`);
+  if (!coinId) {
+    console.warn('No coinId provided to getCryptoIconUrl');
+    return '';
   }
   
-  // Return the most reliable source
-  return sources[0];
+  const id = coinId.toLowerCase().trim();
+  
+  // Map of common coin IDs to their CoinGecko image paths
+  const coinIcons = {
+    'btc': '1/thumb/bitcoin.png',
+    'bitcoin': '1/thumb/bitcoin.png',
+    'eth': '279/thumb/ethereum.png',
+    'ethereum': '279/thumb/ethereum.png',
+    'usdt': '325/thumb/Tether.png',
+    'tether': '325/thumb/Tether.png',
+    'bnb': '825/thumb/bnb-icon2_2x.png',
+    'binancecoin': '825/thumb/bnb-icon2_2x.png',
+    'sol': '4128/thumb/solana.png',
+    'solana': '4128/thumb/solana.png',
+    'usdc': '6319/thumb/USD_Coin_icon.png',
+    'usd-coin': '6319/thumb/USD_Coin_icon.png',
+    'xrp': '44/thumb/xrp-symbol-white-128.png',
+    'ripple': '44/thumb/xrp-symbol-white-128.png',
+    'ada': '975/thumb/cardano.png',
+    'cardano': '975/thumb/cardano.png',
+    'doge': '5/thumb/dogecoin.png',
+    'dogecoin': '5/thumb/dogecoin.png',
+    'dot': '12171/thumb/polkadot.png',
+    'polkadot': '12171/thumb/polkadot.png',
+    'shib': '11939/thumb/shiba.png',
+    'shiba-inu': '11939/thumb/shiba.png',
+    'avax': '12559/thumb/Avalanche_Circle_RedWhite_Trans.png',
+    'avalanche-2': '12559/thumb/Avalanche_Circle_RedWhite_Trans.png',
+    'link': '877/thumb/chainlink-new-logo.png',
+    'chainlink': '877/thumb/chainlink-new-logo.png',
+    'matic': '4713/thumb/matic-token-icon.png',
+    'polygon-pos': '4713/thumb/matic-token-icon.png',
+    'ltc': '2/thumb/litecoin.png',
+    'litecoin': '2/thumb/litecoin.png'
+  };
+  
+  // Try to find a matching icon
+  let iconPath = coinIcons[id];
+  
+  // If no direct match, try to find a partial match
+  if (!iconPath) {
+    const matchingKey = Object.keys(coinIcons).find(key => 
+      id.includes(key) || key.includes(id)
+    );
+    if (matchingKey) {
+      iconPath = coinIcons[matchingKey];
+    }
+  }
+  
+  // If we found a matching icon, return the full URL
+  if (iconPath) {
+    return `https://assets.coingecko.com/coins/images/${iconPath}`;
+  }
+  
+  // If we have a CoinGecko ID but no icon, try to get the image from the API
+  const coinData = getCoinData(id);
+  if (coinData?.image) {
+    return coinData.image.replace('/large/', '/thumb/');
+  }
+  
+  // As a last resort, return a generic icon based on the coin ID
+  if (id.includes('usd') || id.includes('usdt') || id.includes('usdc') || id.includes('dai')) {
+    return 'https://assets.coingecko.com/coins/images/325/thumb/Tether.png';
+  }
+  if (id.includes('btc') || id.includes('bitcoin')) {
+    return 'https://assets.coingecko.com/coins/images/1/thumb/bitcoin.png';
+  }
+  if (id.includes('eth') || id.includes('ethereum')) {
+    return 'https://assets.coingecko.com/coins/images/279/thumb/ethereum.png';
+  }
+  
+  // Default fallback to Ethereum icon
+  return 'https://assets.coingecko.com/coins/images/279/thumb/ethereum.png';
 }
 
 // Helper function to get CoinMarketCap ID

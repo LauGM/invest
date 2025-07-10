@@ -108,9 +108,9 @@ const menuItems = [
 
     <v-main>
       <v-container fluid class="pa-6">
-        <router-view v-slot="{ Component }">
+        <router-view v-slot="{ Component, route }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <component :is="Component" :key="route.path" v-if="Component" />
           </transition>
         </router-view>
       </v-container>
@@ -118,7 +118,11 @@ const menuItems = [
   </v-app>
 </template>
 
-<style>
+<style scoped>
+.v-main {
+  min-height: 100vh;
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s ease;
@@ -127,6 +131,13 @@ const menuItems = [
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* Ensure the transition wrapper takes full width */
+:deep(.fade-enter-active),
+:deep(.fade-leave-active) {
+  display: block;
+  width: 100%;
 }
 
 .v-navigation-drawer__content {

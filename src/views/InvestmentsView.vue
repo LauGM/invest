@@ -139,17 +139,137 @@
         </v-data-table>
       </v-card-text>
     </v-card>
+
+    <!-- Edit Investment Dialog -->
+    <v-dialog v-model="editDialog" max-width="600" persistent>
+    <v-card>
+      <v-card-title class="d-flex justify-space-between align-center">
+        <span>Edit Investment</span>
+        <v-btn icon @click="closeEditDialog" variant="text">
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-card-title>
+      <v-card-text>
+        <v-form v-model="formValid" @submit.prevent="saveInvestment">
+          <v-row>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model="editedItem.amount"
+                :rules="[v => !!v || 'Amount is required', v => !isNaN(v) || 'Must be a number']"
+                label="Amount"
+                type="number"
+                step="any"
+                required
+                variant="outlined"
+                density="comfortable"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model="editedItem.pricePerUnit"
+                :rules="[v => !!v || 'Price is required', v => !isNaN(v) || 'Must be a number']"
+                label="Price per Unit (USD)"
+                type="number"
+                step="any"
+                required
+                variant="outlined"
+                density="comfortable"
+                :disabled="editedItem.hasUnknownCost"
+              >
+                <template v-slot:append>
+                  <v-tooltip v-if="editedItem.hasUnknownCost" text="Cannot edit price for investments with unknown cost" location="top">
+                    <template v-slot:activator="{ props: tooltipProps }">
+                      <v-icon v-bind="tooltipProps" icon="mdi-information" size="small" class="ml-1"></v-icon>
+                    </template>
+                  </v-tooltip>
+                </template>
+              </v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-menu
+                v-model="dateMenu"
+                :close-on-content-click="false"
+                transition="scale-transition"
+                min-width="auto"
+              >
+                <template v-slot:activator="{ props: menuProps }">
+                  <v-text-field
+                    v-model="editedItem.purchaseDate"
+                    :rules="[v => !!v || 'Date is required']"
+                    label="Purchase Date"
+                    variant="outlined"
+                    density="comfortable"
+                    readonly
+                    v-bind="menuProps"
+                  ></v-text-field>
+                </template>
+                <v-date-picker
+                  v-model="editedItem.purchaseDate"
+                  @update:model-value="dateMenu = false"
+                ></v-date-picker>
+              </v-menu>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-textarea
+                v-model="editedItem.notes"
+                label="Notes"
+                variant="outlined"
+                density="comfortable"
+                rows="2"
+                auto-grow
+              ></v-textarea>
+            </v-col>
+          </v-row>
+          
+          <v-card-actions class="pa-0 mt-4">
+            <v-spacer></v-spacer>
+            <v-btn 
+              color="error" 
+              variant="text" 
+              @click="closeEditDialog"
+              class="mr-2"
+            >
+              Cancel
+            </v-btn>
+            <v-btn 
+              color="primary" 
+              type="submit"
+              :loading="isSaving"
+              :disabled="!formValid || isSaving"
+            >
+              Save Changes
+            </v-btn>
+          </v-card-actions>
+        </v-form>
+      </v-card-text>
+    </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue';
 import { getCryptoIconUrl } from '@/services/cryptoApi';
+import { format } from 'date-fns';
 
 const search = ref('');
 const loading = ref(true);
 const isRefreshing = ref(false);
 const lastUpdated = ref(null);
+const editDialog = ref(false);
+const dateMenu = ref(false);
+const formValid = ref(false);
+const isSaving = ref(false);
+
+// Edited item state
+const editedItem = ref({
+  id: null,
+  amount: '',
+  pricePerUnit: '',
+  purchaseDate: format(new Date(), 'yyyy-MM-dd'),
+  notes: '',
+  hasUnknownCost: false
+});
 
 const headers = [
   { title: 'Asset', key: 'asset', sortable: true },
@@ -218,9 +338,48 @@ const getProfitLossColorClass = (value) => {
   return value >= 0 ? 'text-success' : 'text-error';
 };
 
-// Load investments and prices when component is mounted
+let refreshInterval = null;
+
+// Load investments and prices when component is mounted or activated
+const loadData = async () => {
+  try {
+    loading.value = true;
+    await loadInvestments();
+    lastUpdated.value = new Date();
+  } catch (error) {
+    console.error('Error loading investments:', error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Setup auto-refresh
+const setupAutoRefresh = () => {
+  clearInterval(refreshInterval);
+  refreshInterval = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      loadInvestments();
+    }
+  }, 5 * 60 * 1000); // 5 minutes
+};
+
+// Component lifecycle hooks
 onMounted(async () => {
-  await loadInvestments();
+  await loadData();
+  setupAutoRefresh();
+});
+
+onActivated(async () => {
+  await loadData();
+  setupAutoRefresh();
+});
+
+onDeactivated(() => {
+  clearInterval(refreshInterval);
+});
+
+onUnmounted(() => {
+  clearInterval(refreshInterval);
 });
 
 // Load investments and their current prices
@@ -249,18 +408,72 @@ const refreshPrices = async () => {
   try {
     isRefreshing.value = true;
     await loadInvestments();
+    lastUpdated.value = new Date();
   } catch (error) {
     console.error('Error refreshing prices:', error);
   } finally {
     isRefreshing.value = false;
+    // Reset the auto-refresh timer after manual refresh
+    setupAutoRefresh();
   }
 };
 
-function editItem(item) {
-  console.log('Edit item:', item);
-  // In a real app, this would navigate to edit form
-  // router.push(`/edit-investment/${item.id}`);
-}
+const editItem = (item) => {
+  editedItem.value = {
+    id: item.id,
+    amount: item.amount,
+    pricePerUnit: item.pricePerUnit || '',
+    purchaseDate: format(new Date(item.purchaseDate || new Date()), 'yyyy-MM-dd'),
+    notes: item.notes || '',
+    hasUnknownCost: item.hasUnknownCost || false
+  };
+  editDialog.value = true;
+};
+
+const closeEditDialog = () => {
+  editDialog.value = false;
+  // Reset form after animation completes
+  setTimeout(() => {
+    editedItem.value = {
+      id: null,
+      amount: '',
+      pricePerUnit: '',
+      purchaseDate: format(new Date(), 'yyyy-MM-dd'),
+      notes: '',
+      hasUnknownCost: false
+    };
+  }, 200);
+};
+
+const saveInvestment = async () => {
+  if (!formValid.value) return;
+  
+  isSaving.value = true;
+  
+  try {
+    const investmentData = {
+      ...editedItem.value,
+      amount: parseFloat(editedItem.value.amount),
+      pricePerUnit: editedItem.value.hasUnknownCost ? null : parseFloat(editedItem.value.pricePerUnit),
+      purchaseDate: new Date(editedItem.value.purchaseDate).toISOString()
+    };
+    
+    await investmentStore.updateInvestment(editedItem.value.id, investmentData);
+    
+    // Show success message
+    // You can use a toast/snackbar here if you have one
+    console.log('Investment updated successfully');
+    
+    // Close the dialog and refresh the list
+    closeEditDialog();
+    await loadInvestments();
+  } catch (error) {
+    console.error('Error updating investment:', error);
+    // Show error message
+  } finally {
+    isSaving.value = false;
+  }
+};
 
 function deleteItem(item) {
   const assetName = item.assetName || item.asset;
