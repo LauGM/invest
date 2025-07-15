@@ -49,8 +49,8 @@
                 <tr v-for="tx in recentTransactions" :key="tx.id">
                   <td>{{ formatDate(tx.createdAt) }}</td>
                   <td class="d-flex align-center">
-                    <v-img 
-                      :src="getCryptoIconUrl(tx.assetSymbol || tx.asset, 'small')" 
+                    <v-img
+                      :src="getCryptoIconUrl(tx.assetSymbol || tx.asset, 'small')"
                       :alt="tx.assetName || tx.asset"
                       @error="handleImageError($event, tx.assetSymbol || tx.asset)"
                       :lazy-src="getFallbackIcon(tx.assetSymbol || tx.asset)"
@@ -72,9 +72,9 @@
                   <td>{{ tx.type || 'Buy' }}</td>
                   <td>{{ formatCurrency(tx.amount * (tx.price || 1)) }}</td>
                   <td>
-                    <v-chip 
-                      size="small" 
-                      :color="getStatusColor(tx.status)" 
+                    <v-chip
+                      size="small"
+                      :color="getStatusColor(tx.status)"
                       variant="flat"
                       label
                     >
@@ -114,8 +114,8 @@
               <v-list-item v-for="(coin, index) in watchlist" :key="index" class="px-0" :class="{'mb-2': index < watchlist.length - 1}">
                 <template v-slot:prepend>
                   <v-avatar class="mr-2" size="24" style="min-width: 24px; width: 24px;">
-                    <v-img 
-                      :src="getCryptoIconUrl(coin.id, 'small')" 
+                    <v-img
+                      :src="getCryptoIconUrl(coin.id, 'small')"
                       :alt="coin.name"
                       @error="handleImageError($event, coin.id)"
                       :lazy-src="getFallbackIcon(coin.id)"
@@ -149,6 +149,11 @@
         </v-card>
       </v-col>
     </v-row>
+    <v-row>
+      <v-col cols="12" lg="4">
+        <AlarmWidget :alarm="{investmentId: '1752009929745', percentage: 10}" />
+      </v-col>
+    </v-row>
   </div>
 </template>
 
@@ -157,6 +162,7 @@ import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue';
 import { useInvestmentStore } from '@/stores/investmentStore';
 import { getMultipleCryptoPrices, getCryptoIconUrl } from '@/services/cryptoApi';
 import { format } from 'date-fns';
+import AlarmWidget from '@/components/alarms/AlarmWidget.vue';
 
 const investmentStore = useInvestmentStore();
 
@@ -166,10 +172,10 @@ const stats = computed(() => {
   const totalInvested = investmentStore.totalInvested;
   const profitLoss = portfolioValue - totalInvested;
   const profitLossPercentage = totalInvested > 0 ? (profitLoss / totalInvested) * 100 : 0;
-  
+
   // Static daily change since we removed the portfolio history
   const dailyChange = 0;
-  
+
   return [
     {
       title: 'Total Portfolio Value',
@@ -220,28 +226,28 @@ const watchlistLoading = ref(true);
 const fetchWatchlistData = async () => {
   try {
     watchlistLoading.value = true;
-    
+
     // Get prices for all coins in the watchlist
     const coinIds = defaultWatchlist.map(coin => coin.id);
     const prices = await getMultipleCryptoPrices(coinIds);
-    
+
     // Get 24h price change data
     const response = await fetch(
       `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinIds.join(',')}&price_change_percentage=24h`
     );
     const marketData = await response.json();
-    
+
     // Map the data to our watchlist format
     watchlist.value = defaultWatchlist.map(coin => {
       const priceData = prices[coin.id] || { usd: 0 };
       const marketInfo = marketData.find(m => m.id === coin.id) || { price_change_percentage_24h: 0 };
-      
+
       return {
         id: coin.id,
         name: coin.name,
         symbol: coin.symbol.toUpperCase(),
         price: priceData.usd || 0,
-        change: marketInfo.price_change_percentage_24h ? 
+        change: marketInfo.price_change_percentage_24h ?
           parseFloat(marketInfo.price_change_percentage_24h.toFixed(2)) : 0,
         image: getCryptoIconUrl(coin.id, 'small')
       };
@@ -296,12 +302,12 @@ const formatDate = (dateString) => {
 const getFallbackIcon = (coinId) => {
   // Try to get the icon URL using the same logic as getCryptoIconUrl
   const url = getCryptoIconUrl(coinId, 'thumb');
-  
+
   // If we got a URL, use it
   if (url) {
     return url;
   }
-  
+
   // Default fallback to Ethereum icon
   return 'https://assets.coingecko.com/coins/images/279/thumb/ethereum.png';
 };
@@ -347,23 +353,23 @@ let refreshInterval;
 // Initialize on mount
 onMounted(async () => {
   console.log('Dashboard mounted, initializing...');
-  
+
   try {
     // Update prices first
     console.log('Updating investment prices...');
     await investmentStore.updatePrices();
-    
+
     // Then fetch all dashboard data in parallel
     await Promise.all([
       initializeDashboard(),
       fetchWatchlistData()
     ]);
-    
+
     // Set up auto-refresh
     refreshInterval = setInterval(() => {
       fetchWatchlistData();
     }, 5 * 60 * 1000);
-    
+
     console.log('Dashboard initialization complete');
   } catch (error) {
     console.error('Error initializing dashboard:', error);
@@ -376,16 +382,16 @@ onActivated(initializeDashboard);
 // Cleanup on unmount
 onUnmounted(() => {
   if (!isMounted) return;
-  
+
   console.log('Dashboard unmounting, cleaning up...');
   isMounted = false;
-  
+
   // Clear any intervals
   if (refreshInterval) {
     clearInterval(refreshInterval);
     refreshInterval = null;
   }
-  
+
   console.log('Dashboard cleanup complete');
 });
 

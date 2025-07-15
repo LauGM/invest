@@ -49,9 +49,8 @@ export function getCryptoIconUrl(coinId, size = 'small') {
     console.warn('No coinId provided to getCryptoIconUrl');
     return '';
   }
-  
   const id = coinId.toLowerCase().trim();
-  
+
   // Map of common coin IDs to their CoinGecko image paths
   const coinIcons = {
     'btc': '1/thumb/bitcoin.png',
@@ -85,31 +84,31 @@ export function getCryptoIconUrl(coinId, size = 'small') {
     'ltc': '2/thumb/litecoin.png',
     'litecoin': '2/thumb/litecoin.png'
   };
-  
+
   // Try to find a matching icon
   let iconPath = coinIcons[id];
-  
+
   // If no direct match, try to find a partial match
   if (!iconPath) {
-    const matchingKey = Object.keys(coinIcons).find(key => 
+    const matchingKey = Object.keys(coinIcons).find(key =>
       id.includes(key) || key.includes(id)
     );
     if (matchingKey) {
       iconPath = coinIcons[matchingKey];
     }
   }
-  
+
   // If we found a matching icon, return the full URL
   if (iconPath) {
     return `https://assets.coingecko.com/coins/images/${iconPath}`;
   }
-  
+
   // If we have a CoinGecko ID but no icon, try to get the image from the API
   const coinData = getCoinData(id);
   if (coinData?.image) {
     return coinData.image.replace('/large/', '/thumb/');
   }
-  
+
   // As a last resort, return a generic icon based on the coin ID
   if (id.includes('usd') || id.includes('usdt') || id.includes('usdc') || id.includes('dai')) {
     return 'https://assets.coingecko.com/coins/images/325/thumb/Tether.png';
@@ -120,7 +119,7 @@ export function getCryptoIconUrl(coinId, size = 'small') {
   if (id.includes('eth') || id.includes('ethereum')) {
     return 'https://assets.coingecko.com/coins/images/279/thumb/ethereum.png';
   }
-  
+
   // Default fallback to Ethereum icon
   return 'https://assets.coingecko.com/coins/images/279/thumb/ethereum.png';
 }
@@ -152,7 +151,7 @@ function getCoinMarketCapId(coinId) {
     'xmr': '328',
     'fil': '2280'
   };
-  
+
   return cmcIds[coinId] || '';
 }
 
@@ -180,7 +179,7 @@ function getCryptoSlug(coinId) {
     'xmr': 'monero',
     'fil': 'filecoin'
   };
-  
+
   return slugs[coinId] || coinId;
 }
 
@@ -238,11 +237,11 @@ export async function getCryptoPrice(id, vsCurrency = 'usd') {
     const response = await fetch(
       `${PUBLIC_API_URL}/simple/price?ids=${id}&vs_currencies=${vsCurrency}`
     );
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch price for ${id}`);
     }
-    
+
     const data = await response.json();
     return data[id][vsCurrency];
   } catch (error) {
@@ -266,12 +265,12 @@ export async function getMultipleCryptoPrices(coinIds) {
   // Convert array to comma-separated string for the API
   const ids = coinIds.join(',');
   const endpoint = `${API_BASE_URL}/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=usd`;
-  
+
   // Try direct API first (some endpoints support CORS)
   try {
     console.log('Trying direct API call to:', endpoint);
     const directResponse = await fetch(endpoint);
-    
+
     if (directResponse.ok) {
       const data = await directResponse.json();
       console.log('Direct API call successful:', data);
@@ -286,7 +285,7 @@ export async function getMultipleCryptoPrices(coinIds) {
   try {
     const proxyUrl = `${CORS_PROXY}${encodeURIComponent(endpoint)}`;
     console.log('Fetching prices via CORS proxy:', proxyUrl);
-    
+
     const response = await fetch(proxyUrl);
 
     if (!response.ok) {
@@ -297,7 +296,7 @@ export async function getMultipleCryptoPrices(coinIds) {
 
     const data = await response.json();
     console.log('CORS Proxy Response:', data);
-    
+
     return data;
   } catch (error) {
     console.error('Error in getMultipleCryptoPrices:', error);
@@ -315,11 +314,11 @@ export async function searchCrypto(query) {
     const response = await fetch(
       `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
     );
-    
+
     if (!response.ok) {
       throw new Error('Failed to search cryptocurrencies');
     }
-    
+
     const data = await response.json();
     return data.coins || [];
   } catch (error) {
@@ -350,21 +349,21 @@ const SYMBOL_TO_ID = {
  */
 export async function getCryptoIdBySymbol(symbol) {
   const lowerSymbol = symbol.toLowerCase();
-  
+
   // First check our static mapping
   if (SYMBOL_TO_ID[lowerSymbol]) {
     return SYMBOL_TO_ID[lowerSymbol];
   }
-  
+
   // Fallback to API lookup if not in our static mapping
   try {
     const response = await fetch(`${API_BASE_URL}/coins/list`);
     const coins = await response.json();
-    
+
     // Try exact match first
     const coin = coins.find(c => c.symbol === lowerSymbol);
     if (coin) return coin.id;
-    
+
     // If no exact match, return the symbol as a fallback
     return lowerSymbol;
   } catch (error) {
